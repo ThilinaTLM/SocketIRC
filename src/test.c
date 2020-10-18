@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <time.h>
 #include <unistd.h>
+#include <pthread.h>
 
 #include "lib/cmd.h"
 
@@ -18,13 +19,21 @@ char *read_line() {
     return input;
 }
 
+void runner() {
+    printf("Hello World!\n");
+    sleep(2);
+    printf("END THREAD\n");
+    pthread_exit(0);
+}
+
 int main() {
-    struct CommandData cd;
-    printf("Command>");
-    if (cd_parse(&cd, read_line()) != 0) {
-        printf("Invalid Command!\n");
-    } else {
-        cd_show(&cd);
-    }
-    return 0;
+    pthread_t thread;
+    printf("Start Thread 01\n");
+    pthread_create(&thread, NULL, (void *) runner, NULL);
+    pthread_join(thread, NULL);
+    sleep(2);
+    printf("Start Thread 02\n");
+    pthread_create(&thread, NULL, (void *) runner, NULL);
+    pthread_join(thread, NULL);
+    sleep(2);
 }

@@ -131,6 +131,10 @@
 			<Option target="client"/>
 			<Option target="server"/>
 		</Unit>
+		<Unit filename="/home/tlm/Disk1/Programming/Projects/SocketIRC/src/lib/logging.h">
+			<Option target="client"/>
+			<Option target="server"/>
+		</Unit>
 		<Unit filename="/home/tlm/Disk1/Programming/Projects/SocketIRC/src/test.c">
 			<Option target="client"/>
 		</Unit>

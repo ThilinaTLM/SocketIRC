@@ -11,7 +11,7 @@ server.o:
 	$(CC) -c src/Server.c -o bin/server.o
 
 client: client.o
-	$(CC) bin/client.o -o bin/client
+	$(CC) -$(ARGS)  bin/client.o -o bin/client
 
 client.o:
 	$(CC) -c src/Client.c -o bin/client.o
@@ -20,4 +20,4 @@ clean:
 	rm -f bin/*
 
 test:
-	clang src/test.c -o bin/test && ./bin/test
+	clang -$(ARGS) src/test.c -o bin/test && ./bin/test

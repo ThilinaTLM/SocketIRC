@@ -14,7 +14,7 @@
 #define C_BCASTMSG 6
 #define C_QUIT 7
 
-#define COMMAND_LEN 50
+#define COMMAND_CODE_LEN 50
 #define ARG_LEN 100
 #define LAST_ARG_LEN 300
 
@@ -24,45 +24,65 @@ struct CommandData {
     char arg2[LAST_ARG_LEN];
 };
 
+int skip_trailing_spaces(const char *raw, int pointer) {
+    int ind = 0;
+    char c = *(raw + pointer + ind);
+    while (c == ' ') c = *(raw + pointer + (++ind));
+    if (c == '\n' || c == 0) {
+        return -1;
+    }
+    return pointer + ind;
+}
+
 int cd_parse_code(int *code, const char * raw, int pointer) {
-    char cmd[COMMAND_LEN];
+    pointer = skip_trailing_spaces(raw, pointer);
+    if (pointer == -1) {
+        return -1;
+    }
+
+    char cmd[COMMAND_CODE_LEN];
     int ind = 0;
     char c = *(raw  + pointer + ind);
-    while (c != ' ' && c != 0 && ind < COMMAND_LEN ) {
+    while (c != ' ' && c != 0 && ind < COMMAND_CODE_LEN ) {
         cmd[ind] = c;
         c = *(raw  + pointer + (++ind));
     }
     cmd[ind] = 0; // break string
 
-    if (strcmp((const char *) cmd, "JOIN") == 0) {
+    if (strcasecmp((const char *) cmd, "JOIN") == 0) {
         *code = C_JOIN;
-        return pointer + ind + 1;
-    } else if (strcmp((const char *) cmd, "NICK") == 0) {
+        return pointer + ind;
+    } else if (strcasecmp((const char *) cmd, "NICK") == 0) {
         *code = C_NICK;
-        return pointer + ind + 1;
-    } else if (strcmp((const char *) cmd, "WHO") == 0) {
+        return pointer + ind;
+    } else if (strcasecmp((const char *) cmd, "WHO") == 0) {
         *code = C_WHO;
-        return pointer + ind + 1;
-    } else if (strcmp((const char *) cmd, "WHOSIS") == 0) {
+        return pointer + ind;
+    } else if (strcasecmp((const char *) cmd, "WHOSIS") == 0) {
         *code = C_WHOSIS;
-        return pointer + ind + 1;
-    } else if (strcmp((const char *) cmd, "TIME") == 0) {
+        return pointer + ind;
+    } else if (strcasecmp((const char *) cmd, "TIME") == 0) {
         *code = C_TIME;
-        return pointer + ind + 1;
-    } else if (strcmp((const char *) cmd, "PRIVMSG") == 0) {
+        return pointer + ind;
+    } else if (strcasecmp((const char *) cmd, "PRIVMSG") == 0) {
         *code = C_PRIVMSG;
-        return pointer + ind + 1;
-    } else if (strcmp((const char *) cmd, "BCASTMSG") == 0) {
+        return pointer + ind;
+    } else if (strcasecmp((const char *) cmd, "BCASTMSG") == 0) {
         *code = C_BCASTMSG;
-        return pointer + ind + 1;
-    } else if (strcmp((const char *) cmd, "QUIT") == 0) {
+        return pointer + ind;
+    } else if (strcasecmp((const char *) cmd, "QUIT") == 0) {
         *code = C_QUIT;
-        return pointer + ind + 1;
+        return pointer + ind;
     }
     return -1;
 }
 
 int cd_parse_arg(char *arg, const char * raw, int pointer) {
+    pointer = skip_trailing_spaces(raw, pointer);
+    if (pointer == -1) {
+        return -1;
+    }
+
     char frame[ARG_LEN];
     int ind = 0;
     char c = *(raw  + pointer + ind);
@@ -72,10 +92,15 @@ int cd_parse_arg(char *arg, const char * raw, int pointer) {
     }
     frame[ind] = 0; // break string
     strcpy( arg, frame);
-    return pointer + ind + 1;
+    return pointer + ind;
 }
 
 int cd_parse_arg_last(char *arg, const char * raw, int pointer) {
+    pointer = skip_trailing_spaces(raw, pointer);
+    if (pointer == -1) {
+        return -1;
+    }
+
     char frame[LAST_ARG_LEN];
     int ind = 0;
     char c = *(raw  + pointer + ind);
@@ -85,7 +110,7 @@ int cd_parse_arg_last(char *arg, const char * raw, int pointer) {
     }
     frame[ind] = 0; // break string
     strcpy( arg, frame);
-    return pointer + ind + 1;
+    return pointer + ind;
 }
 
 int cd_parse(struct CommandData *cd, const char * raw) {
@@ -96,9 +121,17 @@ int cd_parse(struct CommandData *cd, const char * raw) {
     pointer = cd_parse_code(&cd->code, raw, pointer);
     if (pointer == -1) return  -1;
 
+    if (cd->code == C_TIME || cd->code == C_WHO) {
+        return 0;
+    }
 
     pointer = cd_parse_arg(&cd->arg1[0], raw, pointer);
     if (pointer == -1) return  -1;
+
+    if (cd->code == C_NICK || cd->code == C_WHOSIS || cd->code == C_BCASTMSG || cd->code == C_QUIT) {
+        return 0;
+    }
+
     pointer = cd_parse_arg_last(&cd->arg2[0], raw, pointer);
     if (pointer == -1) return  -1;
     return 0;

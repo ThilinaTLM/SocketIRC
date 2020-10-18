@@ -6,7 +6,7 @@
 
 #IncludeRegexTransform: 
 
-/home/tlm/Disk1/Programming/Projects/SocketIRC/Client/Client.c
+/home/tlm/Disk1/Programming/Projects/SocketIRC/src/Client.c
 stdio.h
 -
 sys/socket.h
@@ -17,4 +17,22 @@ unistd.h
 -
 string.h
 -
+lib/cmd.h
+/home/tlm/Disk1/Programming/Projects/SocketIRC/src/lib/cmd.h
+
+/home/tlm/Disk1/Programming/Projects/SocketIRC/src/lib/cmd.h
+stdlib.h
+-
+string.h
+-
+
+/home/tlm/Disk1/Programming/Projects/SocketIRC/src/test.c
+stdio.h
+-
+time.h
+-
+unistd.h
+-
+lib/cmd.h
+/home/tlm/Disk1/Programming/Projects/SocketIRC/src/lib/cmd.h
 
