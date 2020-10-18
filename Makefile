@@ -1,22 +1,32 @@
-# C Compiler
-CC = clang
+INC_DIR = src/lib
+SRC_DIR = src
+OBJ_DIR = obj
+BIN_DIR = bin
 
-# Arguments for Compiler
-ARGS = lpthread
+CC = clang # C Compiler
+CFLAGS = -lpthread # compiler flags
 
-all: server client src/lib/cpool.h src/lib/cprofile.h src/lib/cmd.h src/lib/console.h
+SRCS = $(SRC_DIR)/Client.c $(SRC_DIR)/Server.c
+OBJS = $(OBJ_DIR)/client.o $(OBJ_DIR)/server.o
+BINS = $(BIN_DIR)/client $(BIN_DIR)/server
 
-server: server.o
-	$(CC) -$(ARGS) bin/server.o -o bin/server
+DEPS = $(INC_DIR)/cmd.h $(INC_DIR)/console.h $(INC_DIR)/cpool.h $(INC_DIR)/cprofile.h
 
-server.o: src/lib/cpool.h src/lib/cprofile.h src/lib/cmd.h
-	$(CC) -c src/Server.c -o bin/server.o
+all: $(BINS)
 
-client: client.o
-	$(CC) -$(ARGS)  bin/client.o -o bin/client
+$(BIN_DIR)/client: $(OBJ_DIR)/client.o
+	$(CC) $(CFLAGS) $(OBJ_DIR)/client.o -o $(BIN_DIR)/client
 
-client.o: src/lib/cmd.h src/lib/console.h src/lib/cprofile.h 
-	$(CC) -c src/Client.c -o bin/client.o
+$(BIN_DIR)/server: $(OBJ_DIR)/server.o
+	$(CC) $(CFLAGS) $(OBJ_DIR)/server.o -o $(BIN_DIR)/server
+
+$(OBJ_DIR)/client.o: $(SRC_DIR)/Client.c
+	$(CC) -c $(SRC_DIR)/Client.c -o $(OBJ_DIR)/client.o
+
+$(OBJ_DIR)/server.o: $(SRC_DIR)/Server.c
+	$(CC) -c $(SRC_DIR)/Server.c -o $(OBJ_DIR)/server.o
+
+$(SRC_DIR)/%.c: $(DEPS)
 
 clean:
-	rm -f bin/*
+	rm -f $(BIN_DIR)/* $(OBJ_DIR)/*
