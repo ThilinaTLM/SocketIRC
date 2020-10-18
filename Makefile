@@ -18,6 +18,3 @@ client.o:
 
 clean:
 	rm -f bin/*
-
-test:
-	clang -$(ARGS) src/test.c -o bin/test && ./bin/test

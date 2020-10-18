@@ -11,6 +11,7 @@
 #define STATUS_DISCONNECTED 0
 #define STATUS_CONNECTED 1
 #define STATUS_JOINED 2
+#define STATUS_DEAD 3
 
 /**
  * Client Profile
@@ -58,8 +59,6 @@ struct ClientData* cp_create() {
     cp->nickname = NULL;
     cp->realname = NULL;
     cp->username = NULL;
-
-    cp->status = STATUS_DISCONNECTED;
     return cp;
 }
 
@@ -68,7 +67,6 @@ void cp_clean(struct ClientData *cp) {
     if (cp->username != NULL) free(cp->username);
     if (cp->nickname != NULL) free(cp->nickname);
     if (cp->realname != NULL) free(cp->realname);
-    cp->status = STATUS_DISCONNECTED;
     cp->socket_fd = 0;
     cp->joined_time = 0;
 }

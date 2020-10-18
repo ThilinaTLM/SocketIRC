@@ -11,26 +11,38 @@
 #include "lib/cmd.h"
 #include "lib/cprofile.h"
 #include "lib/cpool.h"
-#include "lib/console.h"
 
 #define IP 0
 #define PORT 8080
 
-// Global Variables
+// Global Variables ----------------------------------------------------------------------------------------------------
 struct ClientPool *CPOOL;
 int SERVER_SOCK_FD;
+
 int WAIT_TIME;
 int MAX_CLIENTS;
 int MAX_CLIENTS_EXTRA;
+
+int CONNECTED;
+int DISCONNECTED;
+int DEAD;
+int JOINED;
+
+pthread_mutex_t STATUS_LOCK;
 pthread_mutex_t ACCEPT_LOCK;
 
+// ---------------------------------------------------------------------------------------------------------------------
 
 // Server
+void parse_arguments(int argc, char const **argv);
+
 void configure_server(struct sockaddr_in *addr);
 
-int start_threads();
+int start_threads(int N);
 
 int accept_client_socket(struct sockaddr_in *client_addr); // thread safe
+
+void update_status(struct ClientData *cp, int status); //thread safe
 
 // Client Specific
 int client_connection(struct ClientData *cp);
@@ -65,24 +77,70 @@ int main(int argc, char const **argv) {
     addr.sin_addr.s_addr = INADDR_ANY; // localhost
     addr.sin_port = htons(PORT);
 
+    parse_arguments(argc, argv); // read command line arguments
     printf("[INFO]: Welcome!\n");
 
-
-    MAX_CLIENTS = 10;
-    MAX_CLIENTS_EXTRA = 3;
-    WAIT_TIME = 5;
+    CONNECTED = 0;
+    DISCONNECTED = 0;
+    DEAD = 0;
+    JOINED = 0;
 
     CPOOL = cpool_create(MAX_CLIENTS + MAX_CLIENTS_EXTRA);
 
     pthread_mutex_lock(&ACCEPT_LOCK);
-    start_threads();
+    start_threads(MAX_CLIENTS);
     configure_server(&addr);
     pthread_mutex_unlock(&ACCEPT_LOCK);
 
-    while (1) {
+    struct ClientData *cp;
+    int start_extra_listener = 1;
+    while (CONNECTED >= 0) {
+        if (DEAD > 0) {
+            printf("[WARN]: Dead connection listener is detected!\n");
+            for (int i = 0; i < CPOOL->size; i++) {
+                cp = cpool_get(CPOOL, i);
+                if (cp->status == STATUS_DEAD) {
+                    update_status(cp, STATUS_DISCONNECTED);
+                    pthread_create(&(cp->thread), NULL, (void *(*)(void *)) client_connection, cp);
+                    printf("[INFO]: Making dead listener alive again!\n");
+                }
+            }
+        }
+        if (CONNECTED + JOINED + 1 >= MAX_CLIENTS && start_extra_listener == 1) {
+            printf("[WARN]: Connection limit is about to reached!\n");
+            printf("[INFO]: Starting... extra listeners\n");
+            start_threads(MAX_CLIENTS_EXTRA);
+            start_extra_listener = 0;
+        }
         sleep(1);
+//        printf("DC: %d, C: %d, J: %d, D: %d\n", DISCONNECTED, CONNECTED, JOINED, DEAD);
     }
-    return 0;
+    exit(EXIT_SUCCESS);
+}
+
+void parse_arguments(int argc, char const **argv) {
+    if (argc < 4) {
+        printf("[ERROR]: Invalid commandline arguments\n");
+    }
+
+    int arg1, arg2, arg3;
+    arg1 = (int) strtol(*(argv + 1), 0, 10);
+    arg2 = (int) strtol(*(argv + 2), 0, 10);
+    arg3 = (int) strtol(*(argv + 3), 0, 10);
+
+    if (arg1 <= 0 || arg2 <= 0 || arg3 <= 0) {
+        printf("[ERROR]: Invalid commandline arguments\n");
+        exit(EXIT_FAILURE);
+    }
+
+    MAX_CLIENTS = arg1;
+    MAX_CLIENTS_EXTRA = arg2;
+    WAIT_TIME = arg3;
+
+    printf("[INFO]: Server Configured!\n");
+    printf("\tNO. OF LISTENERS: %d\n", MAX_CLIENTS);
+    printf("\tNO. OF EXTRA LISTENERS: %d\n", MAX_CLIENTS_EXTRA);
+    printf("\tCLIENT TIMEOUT: %d secs\n", WAIT_TIME);
 }
 
 void configure_server(struct sockaddr_in *addr) {
@@ -106,12 +164,71 @@ void configure_server(struct sockaddr_in *addr) {
     }
 }
 
+int start_threads(int N) {
+    struct ClientData *cp;
+    for (int i = 0; i < N; i++) {
+        cp = cp_create();
+        cp->status = STATUS_DISCONNECTED;
+        cpool_add(CPOOL, cp);
+        pthread_create(&(cp->thread), NULL, (void *(*)(void *)) client_connection, cp);
+    }
+    pthread_mutex_lock(&STATUS_LOCK);
+    DISCONNECTED += N;
+    pthread_mutex_unlock(&STATUS_LOCK);
+    printf("[INFO]: Start new %02d Listeners\n", N);
+    return 0;
+}
+
+void update_status(struct ClientData *cp, int status) {
+    pthread_mutex_lock(&STATUS_LOCK);
+
+    switch (status) {
+        case STATUS_JOINED:
+            JOINED++;
+            break;
+        case STATUS_DISCONNECTED:
+            DISCONNECTED++;
+            break;
+        case STATUS_CONNECTED:
+            CONNECTED++;
+            break;
+        case STATUS_DEAD:
+            DEAD++;
+            break;
+        default:
+            return;
+    }
+
+    switch (cp->status) {
+        case STATUS_JOINED:
+            JOINED--;
+            break;
+        case STATUS_DISCONNECTED:
+            DISCONNECTED--;
+            break;
+        case STATUS_CONNECTED:
+            CONNECTED--;
+            break;
+        case STATUS_DEAD:
+            DEAD--;
+            break;
+        default:
+            return;
+    }
+
+    cp->status = status;
+    pthread_mutex_unlock(&STATUS_LOCK);
+}
+
 int accept_client_socket(struct sockaddr_in *client_addr) {
     int client_sock_fd;
     int client_addr_len = sizeof(*client_addr);
+    struct timeval tv;
+    tv.tv_sec = WAIT_TIME;
+    tv.tv_usec = 0;
 
     pthread_mutex_lock(&ACCEPT_LOCK);
-    if (listen(SERVER_SOCK_FD, 3) < 0) {
+    if (listen(SERVER_SOCK_FD, 0) < 0) {
         printf("[ERROR]: Cannot listening to the socket\n");
         exit(EXIT_FAILURE);
     }
@@ -120,30 +237,21 @@ int accept_client_socket(struct sockaddr_in *client_addr) {
         printf("[ERROR]: Error while accepting client socket\n");
         exit(EXIT_FAILURE);
     }
+
+    setsockopt(client_sock_fd, SOL_SOCKET, SO_RCVTIMEO, (const char *) &tv, sizeof tv);
     pthread_mutex_unlock(&ACCEPT_LOCK);
     return client_sock_fd;
-}
-
-int start_threads() {
-    struct ClientData *cp;
-    for (int i = 0; i < MAX_CLIENTS; i++) {
-        cp = cp_create();
-        cpool_add(CPOOL, cp);
-        pthread_create(&(cp->thread), NULL, (void *(*)(void *)) client_connection, cp);
-    }
-    printf("[INFO]: %02d Connections are listening\n", MAX_CLIENTS);
-    return 0;
 }
 
 int client_connection(struct ClientData *cp) {
     struct sockaddr_in client_addr;
     char ip_address[16];
 
-    // make thread alive
-    cp->status = STATUS_CONNECTED;
-
     // accept client socket
     cp->socket_fd = accept_client_socket(&client_addr);
+
+    // mark as connected
+    update_status(cp, STATUS_CONNECTED);
 
     // set ip address
     inet_ntop(AF_INET, &client_addr.sin_addr, ip_address, INET_ADDRSTRLEN);
@@ -157,7 +265,7 @@ int client_connection(struct ClientData *cp) {
 
 int read_client_command(struct ClientData *cp, struct CommandData *cmd) {
     int status = read(cp->socket_fd, cmd, sizeof(*cmd));
-    if (status == 0) {
+    if (status == 0 || status == -1) { // connection lost || timeout
         clean_client_connection(cp);
     }
     return status;
@@ -200,15 +308,17 @@ void clean_client_connection(struct ClientData *cp) {
     struct ClientData *cp_itter;
 
     if (cp->status == STATUS_JOINED) {
-        sprintf(msg_buffer, "[SERVER]: %s is disconnected.", cp->nickname);
+        sprintf(msg_buffer, "[SERVER]: %s is disconnected.", cp_get_nick_or_username(cp));
         for (int i = 0; i < CPOOL->size; i++) {
             cp_itter = cpool_get(CPOOL, i);
-            if (cp_itter == cp && cp_itter->status == STATUS_JOINED) {
+            if (cp_itter != cp && cp_itter->status == STATUS_JOINED) {
                 cp_send_message(cp_itter, msg_buffer);
             }
         }
     }
 
+    close(cp->socket_fd);
+    update_status(cp, STATUS_DEAD);
     cp_clean(cp);
     printf("[CLIENT]: Client Disconneted (SOCK_FD: %d)\n", cp->socket_fd);
     pthread_exit(0);
@@ -234,7 +344,7 @@ void wait_for_join(struct ClientData *cp) {
     }
     cp_set_name(cp, (const char *) &cmd.arg2, (const char *) &cmd.arg1);
     cp_set_joined_tme(cp);
-    cp->status = STATUS_JOINED;
+    update_status(cp, STATUS_JOINED);
 
     sprintf(msg_buffer, "[SERVER]: Joined! | USERNAME: '%s', NAME: '%s', IP: %s",
             cp->username, cp->realname, cp->ip_address);
@@ -243,7 +353,7 @@ void wait_for_join(struct ClientData *cp) {
 
 void client_cmd_bcastmsg(struct ClientData *cp, const char *msg) {
     char msg_buffer[MSG_LENGTH];
-    sprintf(msg_buffer, "[BCAST-MSG][%s]: %s", cp->nickname, msg);
+    sprintf(msg_buffer, "[BCAST-MSG][%s]: %s", cp_get_nick_or_username(cp), msg);
     for (int i = 0; i < CPOOL->size; i++) {
         struct ClientData *cp_itter = cpool_get(CPOOL, i);
         if (cp_itter == cp) continue;
@@ -253,7 +363,8 @@ void client_cmd_bcastmsg(struct ClientData *cp, const char *msg) {
 
 void client_cmd_quit(struct ClientData *cp) {
     char msg_buffer[MSG_LENGTH];
-    sprintf(msg_buffer, "[SERVER]: Connection time %ld secs, Bye %s", cp_get_duration(cp), cp->nickname);
+    sprintf(msg_buffer, "[SERVER]: Connection time %ld secs, Bye %s",
+            cp_get_duration(cp), cp_get_nick_or_username(cp));
     cp_send_message(cp, msg_buffer);
     clean_client_connection(cp);
 }
