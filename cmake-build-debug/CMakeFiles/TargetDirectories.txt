@@ -1,4 +1,0 @@
-/home/tlm/Disk1/Programming/Projects/SocketIRC/cmake-build-debug/CMakeFiles/rebuild_cache.dir
-/home/tlm/Disk1/Programming/Projects/SocketIRC/cmake-build-debug/CMakeFiles/edit_cache.dir
-/home/tlm/Disk1/Programming/Projects/SocketIRC/cmake-build-debug/CMakeFiles/client.dir
-/home/tlm/Disk1/Programming/Projects/SocketIRC/cmake-build-debug/CMakeFiles/server.dir

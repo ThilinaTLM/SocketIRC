@@ -1,1 +1,0 @@
-/usr/bin/cc -g   CMakeFiles/SocketIRC.dir/Client/Client.c.o CMakeFiles/SocketIRC.dir/Server/Server.c.o  -o SocketIRC 
