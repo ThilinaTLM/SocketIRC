@@ -90,8 +90,10 @@ void configure_socket() {
         exit(EXIT_FAILURE);
     }
 
+    serv_addr.sin_addr.s_addr = inet_addr(HOST);
     serv_addr.sin_family = AF_INET;
     serv_addr.sin_port = htons(PORT);
+
     if (inet_pton(AF_INET, HOST, &serv_addr.sin_addr) <= 0) {
         printf("[ERROR]: Invalid host name or port\n");
         exit(EXIT_FAILURE);

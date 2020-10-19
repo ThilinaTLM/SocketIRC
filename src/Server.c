@@ -30,7 +30,6 @@ int JOINED;
 
 pthread_mutex_t STATUS_LOCK;
 pthread_mutex_t ACCEPT_LOCK;
-
 // ---------------------------------------------------------------------------------------------------------------------
 
 // Server
@@ -121,6 +120,7 @@ int main(int argc, char const **argv) {
 void parse_arguments(int argc, char const **argv) {
     if (argc < 4) {
         printf("[ERROR]: Invalid commandline arguments\n");
+        exit(EXIT_FAILURE);
     }
 
     int arg1, arg2, arg3;
@@ -266,6 +266,7 @@ int client_connection(struct ClientData *cp) {
 int read_client_command(struct ClientData *cp, struct CommandData *cmd) {
     int status = read(cp->socket_fd, cmd, sizeof(*cmd));
     if (status == 0 || status == -1) { // connection lost || timeout
+        if (status == -1) cp_send_message(cp, "[SERVER]: Timeout! Connection is reset by the server.");
         clean_client_connection(cp);
     }
     return status;
