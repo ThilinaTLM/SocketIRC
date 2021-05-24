@@ -122,7 +122,7 @@ char * cp_get_nick_or_username(struct ClientData *cp) {
     }
 }
 
-char *cp_to_string(struct ClientData *cp) {
+char * cp_to_string(struct ClientData *cp) {
     if (cp == NULL) {
         return "";
     }
